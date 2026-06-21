@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>FlameTrack — Gas Usage Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --flame: #F97316;
+  --flame-deep: #EA580C;
+  --flame-light: #FFF7ED;
+  --flame-glow: rgba(249,115,22,0.15);
+  --bg: #F8F9FA;
+  --card: #FFFFFF;
+  --text: #111827;
+  --text-2: #6B7280;
+  --text-3: #9CA3AF;
+  --border: #F3F4F6;
+  --green: #10B981;
+  --yellow: #F59E0B;
+  --red: #EF4444;
+  --nav-h: 64px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  max-width: 430px;
+  margin: 0 auto;
+  padding-bottom: calc(var(--nav-h) + var(--safe-bottom) + 8px);
+  position: relative;
+}
+
+/* ── HEADER */
+.header {
+  background: var(--card);
+  padding: 16px 20px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-flame {
+  font-size: 20px;
+  animation: flicker 3s ease-in-out infinite;
+}
+
+@keyframes flicker {
+  0%, 100% { transform: scaleY(1) rotate(-2deg); }
+  25% { transform: scaleY(1.08) rotate(1deg); }
+  50% { transform: scaleY(0.95) rotate(-1deg); }
+  75% { transform: scaleY(1.05) rotate(2deg); }
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.header-title span { color: var(--flame); }
+
+.notif-btn {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  position: relative;
+  font-size: 16px;
+}
+
+.notif-dot {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 8px; height: 8px;
+  background: var(--red);
+  border-radius: 50%;
+  border: 2px solid var(--card);
+}
+
+/* ── PAGES */
+.page { display: none; padding: 16px 16px; }
+.page.active { display: block; }
+
+/* ── SECTION LABEL */
+.sec-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-3);
+  margin-bottom: 10px;
+  margin-top: 4px;
+}
+
+/* ── HERO GAUGE CARD */
+.gauge-card {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 24px 20px 20px;
+  margin-bottom: 14px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.gauge-wrap {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 0 auto 16px;
+}
+
+.gauge-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+
+.gauge-track {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 14;
+  stroke-linecap: round;
+}
+
+.gauge-fill {
+  fill: none;
+  stroke: var(--flame);
+  stroke-width: 14;
+  stroke-linecap: round;
+  stroke-dasharray: 440;
+  stroke-dashoffset: 110;
+  transition: stroke-dashoffset 1s cubic-bezier(.4,0,.2,1), stroke 0.5s;
+  filter: drop-shadow(0 0 6px rgba(249,115,22,0.5));
+}
+
+.gauge-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
+.gauge-pct {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -2px;
+  color: var(--text);
+  line-height: 1;
+}
+
+.gauge-unit {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+.gauge-flame-icon {
+  font-size: 22px;
+  margin-bottom: 2px;
+  animation: flicker 2s ease-in-out infinite;
+}
+
+.gauge-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.gauge-sub {
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.days-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--flame-light);
+  color: var(--flame-deep);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 20px;
+  margin-top: 10px;
+}
+
+/* ── STAT GRID */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.stat-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-3);
+  margin-bottom: 6px;
+}
+
+.stat-val {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  line-height: 1;
+}
+
+.stat-val-unit {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-2);
+  margin-left: 2px;
+}
+
+.stat-trend {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 4px;
+}
+
+.trend-up { color: var(--red); }
+.trend-down { color: var(--green); }
+
+/* ── ALERT CARD */
+.alert-card {
+  border-radius: 14px;
+  padding: 13px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.alert-card.warn { background: #FFFBEB; border: 1px solid #FDE68A; }
+.alert-card.danger { background: #FEF2F2; border: 1px solid #FECACA; }
+.alert-card.ok { background: #F0FDF4; border: 1px solid #BBF7D0; }
+
+.alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.alert-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.alert-desc { font-size: 12px; color: var(--text-2); line-height: 1.4; }
+
+/* ── LIST CARD */
+.list-card {
+  background: var(--card);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  margin-bottom: 14px;
+}
+
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+}
+
+.list-item:last-child { border-bottom: none; }
+
+.list-item-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+
+.li-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.li-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.li-sub { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+.li-right { text-align: right; flex-shrink: 0; }
+.li-val { font-size: 14px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--text); }
+.li-sub-r { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+
+/* ── FORMS */
+.form-card {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 18px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  margin-bottom: 14px;
+}
+
+.form-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 14px;
+}
+
+.form-group {
+  margin-bottom: 12px;
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+  -webkit-appearance: none;
+}
+
+.form-input:focus, .form-select:focus {
+  border-color: var(--flame);
+  background: #fff;
+}
+
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ── BUTTONS */
+.btn-primary {
+  width: 100%;
+  padding: 13px;
+  background: var(--flame);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-primary:active { background: var(--flame-deep); transform: scale(0.98); }
+
+.btn-secondary {
+  width: 100%;
+  padding: 12px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-top: 8px;
+}
+
+.btn-secondary:active { background: var(--border); }
+
+/* ── BAR CHART */
+.bar-chart { margin-top: 6px; }
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.bar-label { font-size: 11px; color: var(--text-2); width: 28px; flex-shrink: 0; }
+.bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%;
+  background: var(--flame);
+  border-radius: 4px;
+  transition: width 0.8s cubic-bezier(.4,0,.2,1);
+}
+.bar-val { font-size: 11px; font-family: 'DM Mono', monospace; color: var(--text-2); width: 32px; text-align: right; flex-shrink: 0; }
+
+/* ── HISTORY LIST */
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.history-item:last-child { border-bottom: none; }
+.history-date { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.history-amount { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 600; color: var(--text); }
+.history-cost { font-size: 12px; color: var(--text-3); text-align: right; margin-top: 2px; }
+
+/* ── BOTTOM NAV */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  height: calc(var(--nav-h) + var(--safe-bottom));
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  padding-top: 8px;
+  padding-bottom: var(--safe-bottom);
+  z-index: 100;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  transition: all 0.15s;
+}
+
+.nav-icon { font-size: 22px; line-height: 1; }
+.nav-label { font-size: 10px; font-weight: 600; color: var(--text-3); letter-spacing: 0.2px; }
+.nav-btn.active .nav-label { color: var(--flame); }
+.nav-btn.active .nav-icon { transform: scale(1.1); }
+
+/* ── LOG USAGE FAB */
+.fab {
+  position: fixed;
+  bottom: calc(var(--nav-h) + var(--safe-bottom) + 16px);
+  right: 20px;
+  width: 52px; height: 52px;
+  background: var(--flame);
+  border-radius: 16px;
+  border: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 4px 16px rgba(249,115,22,0.4);
+  cursor: pointer;
+  z-index: 99;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.fab:active { transform: scale(0.93); box-shadow: 0 2px 8px rgba(249,115,22,0.3); }
+
+/* ── TOAST */
+.toast {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-20px);
+  background: #111827;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  opacity: 0;
+  transition: all 0.25s cubic-bezier(.34,1.56,.64,1);
+  z-index: 200;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── MODAL */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 150;
+  display: none;
+  align-items: flex-end;
+  backdrop-filter: blur(2px);
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--card);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 20px calc(20px + var(--safe-bottom));
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s cubic-bezier(.34,1.2,.64,1);
+}
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.modal-handle { width: 36px; height: 4px; background: var(--border); border-radius: 2px; margin: 0 auto 18px; }
+.modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+
+/* ── SETTINGS */
+.settings-section { margin-bottom: 20px; }
+.settings-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-3); margin-bottom: 8px; }
+.settings-item {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.settings-item-label { font-size: 14px; font-weight: 500; color: var(--text); }
+.settings-item-val { font-size: 13px; color: var(--text-2); }
+
+/* TOGGLE */
+.toggle {
+  width: 44px; height: 26px;
+  background: var(--border);
+  border-radius: 13px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--flame); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  width: 20px; height: 20px;
+  background: white;
+  border-radius: 50%;
+  top: 3px; left: 3px;
+  transition: transform 0.2s cubic-bezier(.34,1.56,.64,1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle.on::after { transform: translateX(18px); }
+
+/* ── EMPTY STATE */
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-3); }
+.empty-icon { font-size: 40px; margin-bottom: 10px; }
+.empty-text { font-size: 14px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-brand">
+    <span class="header-flame">🔥</span>
+    <span class="header-title">Flame<span>Track</span></span>
+  </div>
+  <button class="notif-btn" onclick="navigate('alerts')">
+    🔔
+    <span class="notif-dot" id="notif-dot"></span>
+  </button>
+</header>
+
+<!-- ── PAGE: DASHBOARD ── -->
+<div class="page active" id="page-home">
+
+  <!-- Gauge Hero -->
+  <div class="gauge-card">
+    <div class="gauge-wrap">
+      <svg class="gauge-svg" viewBox="0 0 160 160">
+        <circle class="gauge-track" cx="80" cy="80" r="70"/>
+        <circle class="gauge-fill" id="gauge-fill" cx="80" cy="80" r="70"/>
+      </svg>
+      <div class="gauge-center">
+        <div class="gauge-flame-icon" id="gauge-flame">🔥</div>
+        <div class="gauge-pct" id="gauge-pct">72%</div>
+        <div class="gauge-unit" id="gauge-kg">7.2 kg left</div>
+      </div>
+    </div>
+    <div class="gauge-title" id="gauge-cyl">12.5 kg Cylinder</div>
+    <div class="gauge-sub">Refilled <span id="refill-ago">12 days ago</span></div>
+    <div class="days-badge">⏱ <span id="days-left">~18 days</span> remaining</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">Daily Usage</div>
+      <div class="stat-val"><span id="daily-use">0.40</span><span class="stat-val-unit">kg/day</span></div>
+      <div class="stat-trend trend-up" id="daily-trend">↑ 0.05 vs last week</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Monthly Cost</div>
+      <div class="stat-val">₦<span id="monthly-cost">4,800</span></div>
+      <div class="stat-trend" id="cost-trend">~12 kg/month</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Cost per Meal</div>
+      <div class="stat-val">₦<span id="cost-meal">80</span></div>
+      <div class="stat-trend" id="meals-day">3 meals/day avg</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Next Refill</div>
+      <div class="stat-val" style="font-size:16px" id="refill-date">Jul 9</div>
+      <div class="stat-trend" id="refill-sub">Estimated date</div>
+    </div>
+  </div>
+
+  <!-- Alerts -->
+  <div id="alerts-home"></div>
+
+  <!-- Quick Log -->
+  <div class="sec-label">Quick Actions</div>
+  <div class="list-card">
+    <div class="list-item" onclick="openLogModal()" style="cursor:pointer">
+      <div class="list-item-left">
+        <div class="li-icon" style="background:#FFF7ED">🍳</div>
+        <div><div class="li-title">Log cooking session</div><div class="li-sub">Track today's gas usage</div></div>
+      </div>
+      <div style="color:var(--text-3);font-size:18px">›</div>
+    </div>
+    <div class="list-item" onclick="openRefillModal()" style="cursor:pointer">
+      <div class="list-item-left">
+        <div class="li-icon" style="background:#F0FDF4">⛽</div>
+        <div><div class="li-title">Record a refill</div><div class="li-sub">Log new cylinder purchase</div></div>
+      </div>
+      <div style="color:var(--text-3);font-size:18px">›</div>
+    </div>
+    <div class="list-item" onclick="navigate('analytics')" style="cursor:pointer">
+      <div class="list-item-left">
+        <div class="li-icon" style="background:#EFF6FF">📊</div>
+        <div><div class="li-title">View analytics</div><div class="li-sub">Usage trends & insights</div></div>
+      </div>
+      <div style="color:var(--text-3);font-size:18px">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PAGE: LOG ── -->
+<div class="page" id="page-log">
+  <div class="sec-label">Log Usage</div>
+  <div class="form-card">
+    <div class="form-title">🍳 Cooking Session</div>
+    <div class="form-group">
+      <label class="form-label">What did you cook?</label>
+      <input class="form-input" type="text" id="meal-name" placeholder="e.g. Rice and stew"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Duration (mins)</label>
+        <input class="form-input" type="number" id="cook-time" placeholder="30" min="1"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Burner size</label>
+        <select class="form-select" id="burner-size">
+          <option value="small">Small</option>
+          <option value="medium" selected>Medium</option>
+          <option value="large">Large</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Gas used (kg) — optional</label>
+      <input class="form-input" type="number" id="gas-used" placeholder="0.05" step="0.01" min="0"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Servings</label>
+      <input class="form-input" type="number" id="servings" placeholder="4" min="1"/>
+    </div>
+    <button class="btn-primary" onclick="logSession()">✅ Save Session</button>
+  </div>
+
+  <div class="sec-label">Recent Sessions</div>
+  <div class="list-card" id="sessions-list">
+    <div class="empty-state"><div class="empty-icon">🍽️</div><div class="empty-text">No sessions logged yet</div></div>
+  </div>
+</div>
+
+<!-- ── PAGE: ANALYTICS ── -->
+<div class="page" id="page-analytics">
+  <div class="sec-label">This Week</div>
+  <div class="form-card" style="padding:16px">
+    <div class="form-title" style="margin-bottom:12px">📊 Daily Usage (kg)</div>
+    <div class="bar-chart" id="week-chart"></div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">Avg Daily</div>
+      <div class="stat-val"><span id="avg-daily">0.40</span><span class="stat-val-unit">kg</span></div>
+      <div class="stat-trend">Last 7 days</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total This Month</div>
+      <div class="stat-val"><span id="total-month">5.8</span><span class="stat-val-unit">kg</span></div>
+      <div class="stat-trend">June 2025</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Sessions Logged</div>
+      <div class="stat-val" id="total-sessions">0</div>
+      <div class="stat-trend">All time</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Refills This Year</div>
+      <div class="stat-val" id="total-refills">1</div>
+      <div class="stat-trend">2025</div>
+    </div>
+  </div>
+
+  <div class="sec-label">Refill History</div>
+  <div class="list-card">
+    <div style="padding:14px 16px" id="refill-history">
+      <div class="history-item">
+        <div>
+          <div class="li-title">12.5 kg Cylinder</div>
+          <div class="history-date">Jun 9, 2025</div>
+        </div>
+        <div>
+          <div class="history-amount">12.5 kg</div>
+          <div class="history-cost">₦7,500</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec-label">Cost Breakdown</div>
+  <div class="form-card" style="padding:16px">
+    <div class="list-item" style="padding:8px 0;border:none">
+      <div class="li-title">Gas per kg</div>
+      <div class="li-val" id="cost-per-kg">₦600</div>
+    </div>
+    <div class="list-item" style="padding:8px 0">
+      <div class="li-title">Daily cost</div>
+      <div class="li-val" id="daily-cost-val">₦240</div>
+    </div>
+    <div class="list-item" style="padding:8px 0">
+      <div class="li-title">Weekly cost</div>
+      <div class="li-val" id="weekly-cost-val">₦1,680</div>
+    </div>
+    <div class="list-item" style="padding:8px 0;border:none">
+      <div class="li-title" style="color:var(--flame);font-weight:700">Monthly estimate</div>
+      <div class="li-val" style="color:var(--flame)" id="monthly-cost-val">₦7,200</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PAGE: ALERTS ── -->
+<div class="page" id="page-alerts">
+  <div class="sec-label">Notifications</div>
+  <div id="alerts-list"></div>
+
+  <div class="sec-label" style="margin-top:8px">Alert Settings</div>
+  <div class="list-card">
+    <div class="list-item">
+      <div class="list-item-left">
+        <div><div class="li-title">Low gas warning</div><div class="li-sub">Alert when below 20%</div></div>
+      </div>
+      <div class="toggle on" id="toggle-low" onclick="toggleSetting(this)"></div>
+    </div>
+    <div class="list-item">
+      <div class="list-item-left">
+        <div><div class="li-title">Refill reminder</div><div class="li-sub">3 days before estimated empty</div></div>
+      </div>
+      <div class="toggle on" id="toggle-refill" onclick="toggleSetting(this)"></div>
+    </div>
+    <div class="list-item">
+      <div class="list-item-left">
+        <div><div class="li-title">Usage spike alert</div><div class="li-sub">Unusual daily usage detected</div></div>
+      </div>
+      <div class="toggle" id="toggle-spike" onclick="toggleSetting(this)"></div>
+    </div>
+    <div class="list-item">
+      <div class="list-item-left">
+        <div><div class="li-title">Weekly summary</div><div class="li-sub">Every Monday morning</div></div>
+      </div>
+      <div class="toggle on" id="toggle-weekly" onclick="toggleSetting(this)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PAGE: SETTINGS ── -->
+<div class="page" id="page-settings">
+  <div class="sec-label">Household Setup</div>
+  <div class="form-card">
+    <div class="form-group">
+      <label class="form-label">Cylinder size (kg)</label>
+      <select class="form-select" id="set-cylinder">
+        <option value="3">3 kg</option>
+        <option value="6">6 kg</option>
+        <option value="12.5" selected>12.5 kg</option>
+        <option value="50">50 kg</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Household size (people)</label>
+      <input class="form-input" type="number" id="set-people" value="4" min="1"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Meals per day</label>
+      <input class="form-input" type="number" id="set-meals" value="3" min="1"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Price per kg (₦)</label>
+      <input class="form-input" type="number" id="set-price" value="600" min="1"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Low gas warning threshold (%)</label>
+      <input class="form-input" type="number" id="set-threshold" value="20" min="5" max="50"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Currency symbol</label>
+      <select class="form-select" id="set-currency">
+        <option value="₦" selected>₦ Nigerian Naira</option>
+        <option value="$">$ US Dollar</option>
+        <option value="€">€ Euro</option>
+        <option value="£">£ British Pound</option>
+        <option value="KSh">KSh Kenyan Shilling</option>
+        <option value="R$">R$ Brazilian Real</option>
+      </select>
+    </div>
+    <button class="btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+  </div>
+
+  <div class="sec-label">Current Gas Level</div>
+  <div class="form-card">
+    <div class="form-title">Update Gas Level</div>
+    <div class="form-group">
+      <label class="form-label">Current gas remaining (kg)</label>
+      <input class="form-input" type="number" id="set-current-gas" placeholder="e.g. 7.2" step="0.1" min="0"/>
+    </div>
+    <button class="btn-primary" onclick="updateGasLevel()">🔄 Update Level</button>
+  </div>
+
+  <div class="sec-label">Data</div>
+  <div class="list-card">
+    <div class="list-item" onclick="exportData()" style="cursor:pointer">
+      <div class="list-item-left">
+        <div class="li-icon" style="background:#EFF6FF">📤</div>
+        <div><div class="li-title">Export data</div><div class="li-sub">Download as JSON</div></div>
+      </div>
+      <div style="color:var(--text-3)">›</div>
+    </div>
+    <div class="list-item" onclick="clearData()" style="cursor:pointer">
+      <div class="list-item-left">
+        <div class="li-icon" style="background:#FEF2F2">🗑️</div>
+        <div><div class="li-title" style="color:var(--red)">Clear all data</div><div class="li-sub">Cannot be undone</div></div>
+      </div>
+      <div style="color:var(--text-3)">›</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-page="home" onclick="navigate('home',this)">
+    <span class="nav-icon">🏠</span>
+    <span class="nav-label">Home</span>
+  </button>
+  <button class="nav-btn" data-page="log" onclick="navigate('log',this)">
+    <span class="nav-icon">✏️</span>
+    <span class="nav-label">Log</span>
+  </button>
+  <button class="nav-btn" data-page="analytics" onclick="navigate('analytics',this)">
+    <span class="nav-icon">📊</span>
+    <span class="nav-label">Analytics</span>
+  </button>
+  <button class="nav-btn" data-page="alerts" onclick="navigate('alerts',this)">
+    <span class="nav-icon">🔔</span>
+    <span class="nav-label">Alerts</span>
+  </button>
+  <button class="nav-btn" data-page="settings" onclick="navigate('settings',this)">
+    <span class="nav-icon">⚙️</span>
+    <span class="nav-label">Settings</span>
+  </button>
+</nav>
+
+<!-- ── LOG MODAL -->
+<div class="modal-overlay" id="log-modal" onclick="closeModal('log-modal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title">🍳 Quick Log Session</div>
+    <div class="form-group">
+      <label class="form-label">Meal name</label>
+      <input class="form-input" id="m-meal" placeholder="e.g. Rice"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Duration (mins)</label>
+        <input class="form-input" type="number" id="m-time" placeholder="25"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Burner</label>
+        <select class="form-select" id="m-burner">
+          <option value="small">Small</option>
+          <option value="medium" selected>Medium</option>
+          <option value="large">Large</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="quickLog()">✅ Log</button>
+    <button class="btn-secondary" onclick="closeModal('log-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- ── REFILL MODAL -->
+<div class="modal-overlay" id="refill-modal" onclick="closeModal('refill-modal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title">⛽ Record Refill</div>
+    <div class="form-group">
+      <label class="form-label">Cylinder size (kg)</label>
+      <select class="form-select" id="r-size">
+        <option value="3">3 kg</option>
+        <option value="6">6 kg</option>
+        <option value="12.5" selected>12.5 kg</option>
+        <option value="50">50 kg</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Amount paid (₦)</label>
+      <input class="form-input" type="number" id="r-cost" placeholder="7500"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Date</label>
+      <input class="form-input" type="date" id="r-date"/>
+    </div>
+    <button class="btn-primary" onclick="recordRefill()">✅ Save Refill</button>
+    <button class="btn-secondary" onclick="closeModal('refill-modal')">Cancel</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE
+let state = JSON.parse(localStorage.getItem('flametrack') || 'null') || {
+  cylinderSize: 12.5,
+  currentGas: 9.0,
+  pricePerKg: 600,
+  currency: '₦',
+  people: 4,
+  mealsPerDay: 3,
+  threshold: 20,
+  refillDate: new Date(Date.now() - 12*24*60*60*1000).toISOString().split('T')[0],
+  sessions: [],
+  refills: [{ date: new Date(Date.now() - 12*24*60*60*1000).toISOString().split('T')[0], size: 12.5, cost: 7500 }],
+  totalRefills: 1
+};
+
+function save() { localStorage.setItem('flametrack', JSON.stringify(state)); }
+
+// ── BURNER RATES (kg/min)
+const BURNER_RATE = { small: 0.0025, medium: 0.004, large: 0.006 };
+
+// ── NAVIGATE
+function navigate(page, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  if (btn) btn.classList.add('active');
+  else {
+    const nb = document.querySelector(`[data-page="${page}"]`);
+    if (nb) nb.classList.add('active');
+  }
+  if (page === 'analytics') renderAnalytics();
+  if (page === 'alerts') renderAlerts();
+  if (page === 'settings') loadSettings();
+}
+
+// ── TOAST
+function toast(msg, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ── MODAL
+function openLogModal() { document.getElementById('log-modal').classList.add('open'); }
+function openRefillModal() {
+  document.getElementById('r-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('refill-modal').classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// ── GAUGE
+function updateGauge() {
+  const pct = Math.max(0, Math.min(100, (state.currentGas / state.cylinderSize) * 100));
+  const circumference = 2 * Math.PI * 70; // 439.8
+  const offset = circumference * (1 - pct / 100);
+  const fill = document.getElementById('gauge-fill');
+  fill.style.strokeDasharray = circumference;
+  fill.style.strokeDashoffset = offset;
+
+  // Color by level
+  if (pct <= 15) fill.style.stroke = '#EF4444';
+  else if (pct <= 30) fill.style.stroke = '#F59E0B';
+  else fill.style.stroke = '#F97316';
+
+  document.getElementById('gauge-pct').textContent = Math.round(pct) + '%';
+  document.getElementById('gauge-kg').textContent = state.currentGas.toFixed(1) + ' kg left';
+  document.getElementById('gauge-cyl').textContent = state.cylinderSize + ' kg Cylinder';
+
+  // Days remaining
+  const dailyRate = state.currentGas / Math.max(1, daysSinceRefill()) * 0.4;
+  const daysLeft = Math.round(state.currentGas / Math.max(0.1, dailyRate));
+  document.getElementById('days-left').textContent = `~${daysLeft} days`;
+
+  // Refill date
+  const refillDate = new Date(Date.now() + daysLeft * 24 * 60 * 60 * 1000);
+  document.getElementById('refill-date').textContent = refillDate.toLocaleDateString('en', {month:'short',day:'numeric'});
+
+  // Stats
+  const dailyUse = (state.cylinderSize * 0.4 / 30);
+  document.getElementById('daily-use').textContent = dailyUse.toFixed(2);
+  const monthlyCost = Math.round(dailyUse * 30 * state.pricePerKg);
+  document.getElementById('monthly-cost').textContent = monthlyCost.toLocaleString();
+  const costMeal = Math.round((dailyUse * state.pricePerKg) / state.mealsPerDay);
+  document.getElementById('cost-meal').textContent = costMeal;
+  document.getElementById('meals-day').textContent = `${state.mealsPerDay} meals/day avg`;
+
+  // Refill ago
+  document.getElementById('refill-ago').textContent = daysSinceRefill() + ' days ago';
+
+  // Flame flicker speed based on level
+  const flame = document.getElementById('gauge-flame');
+  flame.textContent = pct <= 15 ? '🪫' : '🔥';
+}
+
+function daysSinceRefill() {
+  const ref = new Date(state.refillDate);
+  return Math.floor((Date.now() - ref.getTime()) / (24*60*60*1000));
+}
+
+// ── ALERTS
+function getAlerts() {
+  const pct = (state.currentGas / state.cylinderSize) * 100;
+  const alerts = [];
+  if (pct <= state.threshold) {
+    alerts.push({ type: pct <= 10 ? 'danger' : 'warn', icon: pct <= 10 ? '🚨' : '⚠️', title: pct <= 10 ? 'Critically Low Gas' : 'Low Gas Warning', desc: `Only ${Math.round(pct)}% remaining (${state.currentGas.toFixed(1)} kg). Consider refilling soon.` });
+  }
+  const dailyUse = 0.4;
+  const daysLeft = Math.round(state.currentGas / dailyUse);
+  if (daysLeft <= 3) {
+    alerts.push({ type: 'danger', icon: '📅', title: 'Refill Needed Soon', desc: `Estimated to run out in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. Book your refill now.` });
+  }
+  if (pct > state.threshold && daysLeft > 3) {
+    alerts.push({ type: 'ok', icon: '✅', title: 'Gas Level OK', desc: `You have approximately ${daysLeft} days of gas remaining at current usage.` });
+  }
+  return alerts;
+}
+
+function renderAlerts() {
+  const alerts = getAlerts();
+  const html = alerts.map(a => `
+    <div class="alert-card ${a.type}">
+      <div class="alert-icon">${a.icon}</div>
+      <div><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>
+    </div>`).join('');
+  document.getElementById('alerts-list').innerHTML = html || '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-text">No alerts right now</div></div>';
+
+  // Home page alerts
+  const homeAlerts = alerts.filter(a => a.type !== 'ok');
+  document.getElementById('alerts-home').innerHTML = homeAlerts.map(a => `
+    <div class="alert-card ${a.type}" style="margin-bottom:14px">
+      <div class="alert-icon">${a.icon}</div>
+      <div><div class="alert-title">${a.title}</div><div class="alert-desc">${a.desc}</div></div>
+    </div>`).join('');
+
+  // Notif dot
+  document.getElementById('notif-dot').style.display = homeAlerts.length ? 'block' : 'none';
+}
+
+// ── LOG SESSION
+function logSession() {
+  const meal = document.getElementById('meal-name').value.trim() || 'Cooking session';
+  const mins = parseInt(document.getElementById('cook-time').value) || 20;
+  const burner = document.getElementById('burner-size').value;
+  const manualGas = parseFloat(document.getElementById('gas-used').value);
+  const servings = parseInt(document.getElementById('servings').value) || state.people;
+
+  const gasUsed = isNaN(manualGas) ? parseFloat((BURNER_RATE[burner] * mins).toFixed(3)) : manualGas;
+  state.currentGas = Math.max(0, parseFloat((state.currentGas - gasUsed).toFixed(3)));
+  state.sessions.unshift({ meal, mins, burner, gasUsed, servings, date: new Date().toLocaleDateString() });
+  save(); updateGauge(); renderSessions(); renderAlerts();
+  document.getElementById('meal-name').value = '';
+  document.getElementById('cook-time').value = '';
+  document.getElementById('gas-used').value = '';
+  toast(`✅ Logged: ${meal} (${gasUsed} kg used)`);
+}
+
+function quickLog() {
+  const meal = document.getElementById('m-meal').value.trim() || 'Cooking session';
+  const mins = parseInt(document.getElementById('m-time').value) || 20;
+  const burner = document.getElementById('m-burner').value;
+  const gasUsed = parseFloat((BURNER_RATE[burner] * mins).toFixed(3));
+  state.currentGas = Math.max(0, parseFloat((state.currentGas - gasUsed).toFixed(3)));
+  state.sessions.unshift({ meal, mins, burner, gasUsed, date: new Date().toLocaleDateString() });
+  save(); updateGauge(); renderSessions(); renderAlerts();
+  closeModal('log-modal');
+  toast(`✅ ${meal} logged — ${gasUsed} kg used`);
+}
+
+function renderSessions() {
+  const el = document.getElementById('sessions-list');
+  if (!state.sessions.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🍽️</div><div class="empty-text">No sessions logged yet</div></div>';
+    return;
+  }
+  el.innerHTML = state.sessions.slice(0, 20).map(s => `
+    <div class="list-item">
+      <div class="list-item-left">
+        <div class="li-icon" style="background:#FFF7ED">🍳</div>
+        <div>
+          <div class="li-title">${s.meal}</div>
+          <div class="li-sub">${s.mins} min · ${s.burner} burner · ${s.date}</div>
+        </div>
+      </div>
+      <div class="li-right">
+        <div class="li-val">${s.gasUsed} kg</div>
+        <div class="li-sub-r">${state.currency}${Math.round(s.gasUsed * state.pricePerKg)}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── RECORD REFILL
+function recordRefill() {
+  const size = parseFloat(document.getElementById('r-size').value);
+  const cost = parseFloat(document.getElementById('r-cost').value) || size * state.pricePerKg;
+  const date = document.getElementById('r-date').value || new Date().toISOString().split('T')[0];
+  state.currentGas = size;
+  state.cylinderSize = size;
+  state.refillDate = date;
+  state.totalRefills++;
+  state.refills.unshift({ date, size, cost });
+  save(); updateGauge(); renderAlerts(); closeModal('refill-modal');
+  toast(`⛽ Refill recorded — ${size} kg cylinder`);
+}
+
+// ── ANALYTICS
+function renderAnalytics() {
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const data = [0.38, 0.42, 0.35, 0.51, 0.39, 0.55, 0.40];
+  const max = Math.max(...data);
+  const chart = document.getElementById('week-chart');
+  chart.innerHTML = days.map((d,i) => `
+    <div class="bar-row">
+      <div class="bar-label">${d}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(data[i]/max*100).toFixed(0)}%"></div></div>
+      <div class="bar-val">${data[i]}</div>
+    </div>`).join('');
+
+  document.getElementById('total-sessions').textContent = state.sessions.length;
+  document.getElementById('total-refills').textContent = state.totalRefills;
+
+  const dailyUse = 0.40;
+  const pricePerKg = state.pricePerKg;
+  document.getElementById('cost-per-kg').textContent = `${state.currency}${pricePerKg}`;
+  document.getElementById('daily-cost-val').textContent = `${state.currency}${Math.round(dailyUse * pricePerKg)}`;
+  document.getElementById('weekly-cost-val').textContent = `${state.currency}${Math.round(dailyUse * 7 * pricePerKg).toLocaleString()}`;
+  document.getElementById('monthly-cost-val').textContent = `${state.currency}${Math.round(dailyUse * 30 * pricePerKg).toLocaleString()}`;
+
+  // Refill history
+  const hist = document.getElementById('refill-history');
+  hist.innerHTML = state.refills.map(r => `
+    <div class="history-item">
+      <div><div class="li-title">${r.size} kg Cylinder</div><div class="history-date">${new Date(r.date).toLocaleDateString('en',{year:'numeric',month:'short',day:'numeric'})}</div></div>
+      <div><div class="history-amount">${r.size} kg</div><div class="history-cost">${state.currency}${r.cost.toLocaleString()}</div></div>
+    </div>`).join('');
+}
+
+// ── SETTINGS
+function loadSettings() {
+  document.getElementById('set-cylinder').value = state.cylinderSize;
+  document.getElementById('set-people').value = state.people;
+  document.getElementById('set-meals').value = state.mealsPerDay;
+  document.getElementById('set-price').value = state.pricePerKg;
+  document.getElementById('set-threshold').value = state.threshold;
+  document.getElementById('set-currency').value = state.currency;
+}
+
+function saveSettings() {
+  state.cylinderSize = parseFloat(document.getElementById('set-cylinder').value);
+  state.people = parseInt(document.getElementById('set-people').value);
+  state.mealsPerDay = parseInt(document.getElementById('set-meals').value);
+  state.pricePerKg = parseFloat(document.getElementById('set-price').value);
+  state.threshold = parseInt(document.getElementById('set-threshold').value);
+  state.currency = document.getElementById('set-currency').value;
+  save(); updateGauge(); renderAlerts();
+  toast('✅ Settings saved');
+}
+
+function updateGasLevel() {
+  const val = parseFloat(document.getElementById('set-current-gas').value);
+  if (isNaN(val) || val < 0) { toast('❌ Enter a valid gas amount'); return; }
+  state.currentGas = Math.min(val, state.cylinderSize);
+  save(); updateGauge(); renderAlerts();
+  document.getElementById('set-current-gas').value = '';
+  toast(`✅ Gas level updated to ${state.currentGas} kg`);
+}
+
+function toggleSetting(el) { el.classList.toggle('on'); }
+
+// ── DATA
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'flametrack_data.json';
+  a.click();
+  toast('📤 Data exported');
+}
+
+function clearData() {
+  if (!confirm('Clear all data? This cannot be undone.')) return;
+  localStorage.removeItem('flametrack');
+  location.reload();
+}
+
+// ── INIT
+updateGauge();
+renderAlerts();
+renderSessions();
+document.getElementById('r-date').value = new Date().toISOString().split('T')[0];
+</script>
+</body>
+</html>
