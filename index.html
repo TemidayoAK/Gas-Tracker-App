@@ -808,6 +808,10 @@ body {
   <div class="sec-label">Household Setup</div>
   <div class="form-card">
     <div class="form-group">
+      <label class="form-label">Your Name (shown in shared data)</label>
+      <input class="form-input" type="text" id="set-username" placeholder="e.g. Amaka"/>
+    </div>
+    <div class="form-group">
       <label class="form-label">Cylinder size (kg)</label>
       <select class="form-select" id="set-cylinder">
         <option value="3">3 kg</option>
@@ -958,6 +962,24 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
+// ── GOOGLE SHEETS CONFIG — paste your Web App URL here
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz_ot4xiCxBDqMqGNCWxaAnILrYE6IHHAKlHc_o2skqMDlB9NjZ8wqwyoAn3qBpY41q/exec';
+
+// ── SEND TO GOOGLE SHEETS
+async function sendToSheets(payload) {
+  if (!SHEETS_URL || SHEETS_URL.includes('YOUR_GOOGLE')) return; // skip if not configured
+  try {
+    await fetch(SHEETS_URL, {
+      method: 'POST',
+      mode: 'no-cors', // required for Apps Script
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch(e) {
+    console.warn('Could not send to Sheets:', e);
+  }
+}
+
 // ── STATE
 let state = JSON.parse(localStorage.getItem('flametrack') || 'null') || {
   cylinderSize: 12.5,
@@ -1104,11 +1126,27 @@ function logSession() {
   const burner = document.getElementById('burner-size').value;
   const manualGas = parseFloat(document.getElementById('gas-used').value);
   const servings = parseInt(document.getElementById('servings').value) || state.people;
+  const user = state.userName || 'Anonymous';
 
   const gasUsed = isNaN(manualGas) ? parseFloat((BURNER_RATE[burner] * mins).toFixed(3)) : manualGas;
+  const cost = Math.round(gasUsed * state.pricePerKg);
   state.currentGas = Math.max(0, parseFloat((state.currentGas - gasUsed).toFixed(3)));
-  state.sessions.unshift({ meal, mins, burner, gasUsed, servings, date: new Date().toLocaleDateString() });
+  state.sessions.unshift({ meal, mins, burner, gasUsed, servings, cost, date: new Date().toLocaleDateString() });
   save(); updateGauge(); renderSessions(); renderAlerts();
+
+  // Send to Google Sheets
+  sendToSheets({
+    type: 'session',
+    user, meal,
+    duration: mins,
+    burner,
+    gas_used: gasUsed,
+    servings,
+    cost,
+    cylinder_size: state.cylinderSize,
+    gas_remaining: state.currentGas
+  });
+
   document.getElementById('meal-name').value = '';
   document.getElementById('cook-time').value = '';
   document.getElementById('gas-used').value = '';
@@ -1120,9 +1158,26 @@ function quickLog() {
   const mins = parseInt(document.getElementById('m-time').value) || 20;
   const burner = document.getElementById('m-burner').value;
   const gasUsed = parseFloat((BURNER_RATE[burner] * mins).toFixed(3));
+  const cost = Math.round(gasUsed * state.pricePerKg);
+  const user = state.userName || 'Anonymous';
+
   state.currentGas = Math.max(0, parseFloat((state.currentGas - gasUsed).toFixed(3)));
-  state.sessions.unshift({ meal, mins, burner, gasUsed, date: new Date().toLocaleDateString() });
+  state.sessions.unshift({ meal, mins, burner, gasUsed, cost, date: new Date().toLocaleDateString() });
   save(); updateGauge(); renderSessions(); renderAlerts();
+
+  // Send to Google Sheets
+  sendToSheets({
+    type: 'session',
+    user, meal,
+    duration: mins,
+    burner,
+    gas_used: gasUsed,
+    servings: state.people,
+    cost,
+    cylinder_size: state.cylinderSize,
+    gas_remaining: state.currentGas
+  });
+
   closeModal('log-modal');
   toast(`✅ ${meal} logged — ${gasUsed} kg used`);
 }
@@ -1154,12 +1209,29 @@ function recordRefill() {
   const size = parseFloat(document.getElementById('r-size').value);
   const cost = parseFloat(document.getElementById('r-cost').value) || size * state.pricePerKg;
   const date = document.getElementById('r-date').value || new Date().toISOString().split('T')[0];
+  const user = state.userName || 'Anonymous';
+
   state.currentGas = size;
   state.cylinderSize = size;
   state.refillDate = date;
   state.totalRefills++;
   state.refills.unshift({ date, size, cost });
   save(); updateGauge(); renderAlerts(); closeModal('refill-modal');
+
+  // Send to Google Sheets
+  sendToSheets({
+    type: 'refill',
+    user,
+    meal: 'REFILL',
+    duration: 0,
+    burner: 'N/A',
+    gas_used: size,
+    servings: 0,
+    cost,
+    cylinder_size: size,
+    gas_remaining: size
+  });
+
   toast(`⛽ Refill recorded — ${size} kg cylinder`);
 }
 
@@ -1197,6 +1269,7 @@ function renderAnalytics() {
 
 // ── SETTINGS
 function loadSettings() {
+  document.getElementById('set-username').value = state.userName || '';
   document.getElementById('set-cylinder').value = state.cylinderSize;
   document.getElementById('set-people').value = state.people;
   document.getElementById('set-meals').value = state.mealsPerDay;
@@ -1206,6 +1279,7 @@ function loadSettings() {
 }
 
 function saveSettings() {
+  state.userName = document.getElementById('set-username').value.trim() || 'Anonymous';
   state.cylinderSize = parseFloat(document.getElementById('set-cylinder').value);
   state.people = parseInt(document.getElementById('set-people').value);
   state.mealsPerDay = parseInt(document.getElementById('set-meals').value);
