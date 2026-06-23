@@ -969,13 +969,22 @@ const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz_ot4xiCxBDqMqGNCWx
 async function sendToSheets(payload) {
   if (!SHEETS_URL || SHEETS_URL.includes('YOUR_GOOGLE')) return;
   try {
-    const formData = new FormData();
-    formData.append('data', JSON.stringify(payload));
-    await fetch(SHEETS_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: formData
+    // Use URL params to send data — works from any origin
+    const params = new URLSearchParams({
+      user: payload.user || 'Anonymous',
+      meal: payload.meal || '',
+      duration: payload.duration || '',
+      burner: payload.burner || '',
+      gas_used: payload.gas_used || '',
+      servings: payload.servings || '',
+      cost: payload.cost || '',
+      cylinder_size: payload.cylinder_size || '',
+      gas_remaining: payload.gas_remaining || '',
+      type: payload.type || 'session'
     });
+    
+    // Send as GET request with params — no CORS issues
+    new Image().src = SHEETS_URL + '?' + params.toString();
   } catch(e) {
     console.warn('Could not send to Sheets:', e);
   }
