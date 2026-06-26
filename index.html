@@ -570,6 +570,71 @@ body {
 .empty-state { text-align: center; padding: 40px 20px; color: var(--text-3); }
 .empty-icon { font-size: 40px; margin-bottom: 10px; }
 .empty-text { font-size: 14px; }
+
+/* ── CHIP SELECTORS */
+.chip-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chip {
+  flex: 1;
+  min-width: 60px;
+  padding: 9px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chip:active { transform: scale(0.96); }
+.chip.selected {
+  background: var(--flame-light);
+  border-color: var(--flame);
+  color: var(--flame-deep);
+}
+.burner-count-chips .chip { font-size: 15px; font-weight: 700; padding: 10px 6px; }
+
+/* Burner slot cards for per-burner size */
+.burner-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+.burner-slot {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+}
+.burner-slot-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+.burner-slot .chip-group { gap: 4px; }
+.burner-slot .chip { font-size: 11px; padding: 6px 4px; min-width: 0; }
+.simultaneous-hint {
+  font-size: 12px;
+  color: var(--text-3);
+  background: var(--flame-light);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+  display: none;
+}
+.simultaneous-hint.visible { display: block; }
 </style>
 </head>
 <body>
@@ -670,18 +735,41 @@ body {
       <label class="form-label">What did you cook?</label>
       <input class="form-input" type="text" id="meal-name" placeholder="e.g. Rice and stew"/>
     </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Duration (mins)</label>
-        <input class="form-input" type="number" id="cook-time" placeholder="30" min="1"/>
+    <div class="form-group">
+      <label class="form-label">Duration (mins)</label>
+      <input class="form-input" type="number" id="cook-time" placeholder="30" min="1"/>
+    </div>
+    <!-- Burner count chips -->
+    <div class="form-group">
+      <label class="form-label">How many burners did you use?</label>
+      <div class="chip-group burner-count-chips" id="log-burner-count-chips">
+        <div class="chip selected" data-val="1" onclick="selectBurnerCount('log',1)">1🔥</div>
+        <div class="chip" data-val="2" onclick="selectBurnerCount('log',2)">2🔥</div>
+        <div class="chip" data-val="3" onclick="selectBurnerCount('log',3)">3🔥</div>
+        <div class="chip" data-val="4" onclick="selectBurnerCount('log',4)">4🔥</div>
       </div>
+      <input type="hidden" id="burners-used" value="1"/>
+    </div>
+    <!-- Simultaneous toggle — only shown for 2+ burners -->
+    <div class="form-group" id="log-simultaneous-row" style="display:none">
+      <label class="form-label">Were they all on at the same time?</label>
+      <div class="chip-group" id="log-simultaneous-chips">
+        <div class="chip selected" data-val="yes" onclick="selectSimultaneous('log','yes')">✅ Yes</div>
+        <div class="chip" data-val="partial" onclick="selectSimultaneous('log','partial')">〰️ Partly</div>
+        <div class="chip" data-val="no" onclick="selectSimultaneous('log','no')">➡️ One at a time</div>
+      </div>
+      <input type="hidden" id="all-burners-at-once" value="yes"/>
+    </div>
+    <!-- Per-burner size — shown when simultaneous -->
+    <div id="log-burner-sizes">
       <div class="form-group">
         <label class="form-label">Burner size</label>
-        <select class="form-select" id="burner-size">
-          <option value="small">Small</option>
-          <option value="medium" selected>Medium</option>
-          <option value="large">Large</option>
-        </select>
+        <div class="chip-group" id="log-single-size-chips">
+          <div class="chip" data-val="small" onclick="selectSingleSize('log','small')">🔸 Small</div>
+          <div class="chip selected" data-val="medium" onclick="selectSingleSize('log','medium')">🔶 Medium</div>
+          <div class="chip" data-val="large" onclick="selectSingleSize('log','large')">🟠 Large</div>
+        </div>
+        <input type="hidden" id="burner-size" value="medium"/>
       </div>
     </div>
     <div class="form-group">
@@ -767,6 +855,45 @@ body {
       <div class="li-val" style="color:var(--flame)" id="monthly-cost-val">₦7,200</div>
     </div>
   </div>
+
+  <div class="sec-label">🔥 Burner Usage Insights</div>
+  <div class="form-card" style="padding:16px">
+    <div class="form-title" style="margin-bottom:12px">Burners Used Per Session</div>
+    <div class="bar-chart" id="burner-count-chart"></div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-label">Avg Burners/Session</div>
+      <div class="stat-val"><span id="avg-burners">—</span></div>
+      <div class="stat-trend">All sessions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">All-At-Once Sessions</div>
+      <div class="stat-val"><span id="all-at-once-count">—</span></div>
+      <div class="stat-trend">Simultaneous use</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Same Size Burners</div>
+      <div class="stat-val"><span id="same-size-pct">—</span></div>
+      <div class="stat-trend">% of sessions</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Mixed Size Burners</div>
+      <div class="stat-val"><span id="mixed-size-pct">—</span></div>
+      <div class="stat-trend">% of sessions</div>
+    </div>
+  </div>
+
+  <div class="form-card" style="padding:16px">
+    <div class="form-title" style="margin-bottom:12px">📅 All Burners On — Weekday vs Weekend</div>
+    <div id="weekday-weekend-chart"></div>
+  </div>
+
+  <div class="form-card" style="padding:16px">
+    <div class="form-title" style="margin-bottom:12px">🔥 Burner Size Distribution</div>
+    <div class="bar-chart" id="burner-size-chart"></div>
+  </div>
 </div>
 
 <!-- ── PAGE: ALERTS ── -->
@@ -810,6 +937,26 @@ body {
     <div class="form-group">
       <label class="form-label">Your Name (shown in shared data)</label>
       <input class="form-input" type="text" id="set-username" placeholder="e.g. Amaka"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Number of burners on your stove</label>
+      <select class="form-select" id="set-burner-count">
+        <option value="1">1 burner</option>
+        <option value="2" selected>2 burners</option>
+        <option value="3">3 burners</option>
+        <option value="4">4 burners</option>
+        <option value="5">5 burners</option>
+        <option value="6">6 burners</option>
+        <option value="7">7 burners</option>
+        <option value="8">8 burners</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Are all your burners the same size?</label>
+      <select class="form-select" id="set-burner-uniform">
+        <option value="yes" selected>Yes — all same size</option>
+        <option value="no">No — different sizes</option>
+      </select>
     </div>
     <div class="form-group">
       <label class="form-label">Cylinder size (kg)</label>
@@ -917,13 +1064,38 @@ body {
         <label class="form-label">Duration (mins)</label>
         <input class="form-input" type="number" id="m-time" placeholder="25"/>
       </div>
+    </div>
+    <!-- Burner count chips -->
+    <div class="form-group">
+      <label class="form-label">How many burners?</label>
+      <div class="chip-group burner-count-chips" id="modal-burner-count-chips">
+        <div class="chip selected" data-val="1" onclick="selectBurnerCount('modal',1)">1🔥</div>
+        <div class="chip" data-val="2" onclick="selectBurnerCount('modal',2)">2🔥</div>
+        <div class="chip" data-val="3" onclick="selectBurnerCount('modal',3)">3🔥</div>
+        <div class="chip" data-val="4" onclick="selectBurnerCount('modal',4)">4🔥</div>
+      </div>
+      <input type="hidden" id="m-burners-used" value="1"/>
+    </div>
+    <!-- Simultaneous toggle -->
+    <div class="form-group" id="modal-simultaneous-row" style="display:none">
+      <label class="form-label">All on at the same time?</label>
+      <div class="chip-group" id="modal-simultaneous-chips">
+        <div class="chip selected" data-val="yes" onclick="selectSimultaneous('modal','yes')">✅ Yes</div>
+        <div class="chip" data-val="partial" onclick="selectSimultaneous('modal','partial')">〰️ Partly</div>
+        <div class="chip" data-val="no" onclick="selectSimultaneous('modal','no')">➡️ One at a time</div>
+      </div>
+      <input type="hidden" id="m-all-at-once" value="yes"/>
+    </div>
+    <!-- Per-burner size -->
+    <div id="modal-burner-sizes">
       <div class="form-group">
-        <label class="form-label">Burner</label>
-        <select class="form-select" id="m-burner">
-          <option value="small">Small</option>
-          <option value="medium" selected>Medium</option>
-          <option value="large">Large</option>
-        </select>
+        <label class="form-label">Burner size</label>
+        <div class="chip-group" id="modal-single-size-chips">
+          <div class="chip" data-val="small" onclick="selectSingleSize('modal','small')">🔸 Small</div>
+          <div class="chip selected" data-val="medium" onclick="selectSingleSize('modal','medium')">🔶 Medium</div>
+          <div class="chip" data-val="large" onclick="selectSingleSize('modal','large')">🟠 Large</div>
+        </div>
+        <input type="hidden" id="m-burner" value="medium"/>
       </div>
     </div>
     <button class="btn-primary" onclick="quickLog()">✅ Log</button>
@@ -963,27 +1135,28 @@ body {
 
 <script>
 // ── GOOGLE SHEETS CONFIG — paste your Web App URL here
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzI0mQWQ-VDXT_AA1jqxwrsgbhfH-dvL5O6z2e7iLecrR9O5kxhd-3xo_PlSYyR8_laAw/exec';
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzWPbwHcCypbjHoloaaZ_4baXy2LuniJtCR4g89yR0c3Ym26IyLCXyOvmLFvGYIyzjx8Q/exec';
 
 // ── SEND TO GOOGLE SHEETS
 async function sendToSheets(payload) {
   if (!SHEETS_URL || SHEETS_URL.includes('YOUR_GOOGLE')) return;
   try {
-    // Use URL params to send data — works from any origin
     const params = new URLSearchParams({
-      user: payload.user || 'Anonymous',
-      meal: payload.meal || '',
-      duration: payload.duration || '',
-      burner: payload.burner || '',
-      gas_used: payload.gas_used || '',
-      servings: payload.servings || '',
-      cost: payload.cost || '',
-      cylinder_size: payload.cylinder_size || '',
-      gas_remaining: payload.gas_remaining || '',
-      type: payload.type || 'session'
+      user:             payload.user            || 'Anonymous',
+      meal:             payload.meal            || '',
+      duration:         payload.duration        || '',
+      burner:           payload.burner          || '',
+      burners_used:     payload.burners_used    || 1,
+      burner_same_size: payload.burner_same_size|| 'yes',
+      all_at_once:      payload.all_at_once     || 'no',
+      is_weekend:       payload.is_weekend      || 'no',
+      gas_used:         payload.gas_used        || '',
+      servings:         payload.servings        || '',
+      cost:             payload.cost            || '',
+      cylinder_size:    payload.cylinder_size   || '',
+      gas_remaining:    payload.gas_remaining   || '',
+      type:             payload.type            || 'session'
     });
-    
-    // Send as GET request with params — no CORS issues
     new Image().src = SHEETS_URL + '?' + params.toString();
   } catch(e) {
     console.warn('Could not send to Sheets:', e);
@@ -999,6 +1172,8 @@ let state = JSON.parse(localStorage.getItem('flametrack') || 'null') || {
   people: 4,
   mealsPerDay: 3,
   threshold: 20,
+  burnerCount: 2,
+  burnerUniform: 'yes',
   refillDate: new Date(Date.now() - 12*24*60*60*1000).toISOString().split('T')[0],
   sessions: [],
   refills: [{ date: new Date(Date.now() - 12*24*60*60*1000).toISOString().split('T')[0], size: 12.5, cost: 7500 }],
@@ -1129,30 +1304,179 @@ function renderAlerts() {
   document.getElementById('notif-dot').style.display = homeAlerts.length ? 'block' : 'none';
 }
 
+// ── CHIP-BASED BURNER UI
+const burnerSizes = { log: {}, modal: {} };
+
+function selectBurnerCount(ctx, count) {
+  const chipsId  = ctx === 'log' ? 'log-burner-count-chips' : 'modal-burner-count-chips';
+  const hiddenId = ctx === 'log' ? 'burners-used' : 'm-burners-used';
+  const simRowId = ctx === 'log' ? 'log-simultaneous-row' : 'modal-simultaneous-row';
+
+  document.querySelectorAll(`#${chipsId} .chip`).forEach(c => {
+    c.classList.toggle('selected', parseInt(c.dataset.val) === count);
+  });
+  document.getElementById(hiddenId).value = count;
+
+  const simRow = document.getElementById(simRowId);
+  simRow.style.display = count > 1 ? '' : 'none';
+
+  if (count > 1) {
+    const simHid = ctx === 'log' ? 'all-burners-at-once' : 'm-all-at-once';
+    const curVal = document.getElementById(simHid).value || 'yes';
+    renderBurnerSizeSection(ctx, count, curVal);
+  } else {
+    renderBurnerSizeSection(ctx, count, 'no');
+  }
+}
+
+function selectSimultaneous(ctx, val) {
+  const chipsId  = ctx === 'log' ? 'log-simultaneous-chips' : 'modal-simultaneous-chips';
+  const hiddenId = ctx === 'log' ? 'all-burners-at-once' : 'm-all-at-once';
+  const countId  = ctx === 'log' ? 'burners-used' : 'm-burners-used';
+
+  document.querySelectorAll(`#${chipsId} .chip`).forEach(c => {
+    c.classList.toggle('selected', c.dataset.val === val);
+  });
+  document.getElementById(hiddenId).value = val;
+
+  const count = parseInt(document.getElementById(countId).value) || 1;
+  renderBurnerSizeSection(ctx, count, val);
+}
+
+function selectSingleSize(ctx, val) {
+  const chipsId  = ctx === 'log' ? 'log-single-size-chips' : 'modal-single-size-chips';
+  const hiddenId = ctx === 'log' ? 'burner-size' : 'm-burner';
+  document.querySelectorAll(`#${chipsId} .chip`).forEach(c => {
+    c.classList.toggle('selected', c.dataset.val === val);
+  });
+  document.getElementById(hiddenId).value = val;
+}
+
+function selectSlotSize(ctx, slot, val) {
+  const slotEl = document.getElementById(`${ctx}-slot-${slot}`);
+  if (!slotEl) return;
+  slotEl.querySelectorAll('.chip').forEach(c => {
+    c.classList.toggle('selected', c.dataset.val === val);
+  });
+  burnerSizes[ctx][slot] = val;
+}
+
+function renderBurnerSizeSection(ctx, count, atOnce) {
+  const containerId = ctx === 'log' ? 'log-burner-sizes' : 'modal-burner-sizes';
+  const el = document.getElementById(containerId);
+
+  if (count === 1 || atOnce === 'no') {
+    const hiddenId = ctx === 'log' ? 'burner-size' : 'm-burner';
+    const chipsId  = ctx === 'log' ? 'log-single-size-chips' : 'modal-single-size-chips';
+    const curVal   = document.getElementById(hiddenId)?.value || 'medium';
+    el.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">Burner size</label>
+        <div class="chip-group" id="${chipsId}">
+          <div class="chip${curVal==='small'?' selected':''}" data-val="small" onclick="selectSingleSize('${ctx}','small')">🔸 Small</div>
+          <div class="chip${curVal==='medium'?' selected':''}" data-val="medium" onclick="selectSingleSize('${ctx}','medium')">🔶 Medium</div>
+          <div class="chip${curVal==='large'?' selected':''}" data-val="large" onclick="selectSingleSize('${ctx}','large')">🟠 Large</div>
+        </div>
+        <input type="hidden" id="${hiddenId}" value="${curVal}"/>
+      </div>`;
+  } else {
+    const ordinals = ['1st','2nd','3rd','4th','5th','6th','7th','8th'];
+    for (let i = 1; i <= count; i++) {
+      if (!burnerSizes[ctx][i]) burnerSizes[ctx][i] = 'medium';
+    }
+    el.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">Size of each burner (tap to set)</label>
+        <div class="burner-slots">
+          ${Array.from({length: count}, (_,i) => {
+            const n   = i + 1;
+            const cur = burnerSizes[ctx][n] || 'medium';
+            return `
+              <div class="burner-slot">
+                <div class="burner-slot-label">🔥 ${ordinals[i]}</div>
+                <div class="chip-group" id="${ctx}-slot-${n}">
+                  <div class="chip${cur==='small'?' selected':''}" data-val="small" onclick="selectSlotSize('${ctx}',${n},'small')">S</div>
+                  <div class="chip${cur==='medium'?' selected':''}" data-val="medium" onclick="selectSlotSize('${ctx}',${n},'medium')">M</div>
+                  <div class="chip${cur==='large'?' selected':''}" data-val="large" onclick="selectSlotSize('${ctx}',${n},'large')">L</div>
+                </div>
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+}
+
+function getBurnerSizes(context) {
+  const ctx = context === 'log' ? 'log' : 'modal';
+  const countId   = ctx === 'log' ? 'burners-used' : 'm-burners-used';
+  const atOnceId  = ctx === 'log' ? 'all-burners-at-once' : 'm-all-at-once';
+  const defaultId = ctx === 'log' ? 'burner-size' : 'm-burner';
+
+  const count  = parseInt(document.getElementById(countId).value) || 1;
+  const atOnce = document.getElementById(atOnceId)?.value || 'no';
+
+  if (count === 1 || atOnce === 'no') {
+    const size = document.getElementById(defaultId)?.value || 'medium';
+    return Array(count).fill(size);
+  } else {
+    return Array.from({length: count}, (_,i) => burnerSizes[ctx][i+1] || 'medium');
+  }
+}
+
+// Legacy stub
+function updateBurnerSizeInputs() {}
+
 // ── LOG SESSION
 function logSession() {
   const meal = document.getElementById('meal-name').value.trim() || 'Cooking session';
   const mins = parseInt(document.getElementById('cook-time').value) || 20;
-  const burner = document.getElementById('burner-size').value;
+  const burnersUsed = parseInt(document.getElementById('burners-used').value) || 1;
+  const allAtOnce = document.getElementById('all-burners-at-once')?.value || 'no';
   const manualGas = parseFloat(document.getElementById('gas-used').value);
   const servings = parseInt(document.getElementById('servings').value) || state.people;
   const user = state.userName || 'Anonymous';
 
-  const gasUsed = isNaN(manualGas) ? parseFloat((BURNER_RATE[burner] * mins).toFixed(3)) : manualGas;
+  const sizes = getBurnerSizes('log');
+  const burner = sizes[0] || 'medium'; // primary burner size
+  const burnerSameSize = sizes.every(s => s === sizes[0]) ? 'yes' : 'no';
+
+  // Calculate gas: sum each burner's rate if simultaneous, else just primary burner
+  let gasUsed;
+  if (isNaN(manualGas)) {
+    if (allAtOnce === 'yes') {
+      const totalRate = sizes.reduce((sum, s) => sum + BURNER_RATE[s] * mins, 0);
+      gasUsed = parseFloat(totalRate.toFixed(3));
+    } else if (allAtOnce === 'partial') {
+      const baseRate = BURNER_RATE[burner] * mins;
+      gasUsed = parseFloat((baseRate * (1 + burnersUsed * 0.5)).toFixed(3));
+    } else {
+      gasUsed = parseFloat((BURNER_RATE[burner] * mins).toFixed(3));
+    }
+  } else {
+    gasUsed = manualGas;
+  }
+
   const cost = Math.round(gasUsed * state.pricePerKg);
+  const isWeekend = [0,6].includes(new Date().getDay());
+
   state.currentGas = Math.max(0, parseFloat((state.currentGas - gasUsed).toFixed(3)));
-  state.sessions.unshift({ meal, mins, burner, gasUsed, servings, cost, date: new Date().toLocaleDateString() });
+  state.sessions.unshift({
+    meal, mins, burner, burnersUsed, burnerSameSize, allAtOnce,
+    gasUsed, servings, cost, isWeekend,
+    date: new Date().toLocaleDateString(),
+    timestamp: new Date().toISOString()
+  });
   save(); updateGauge(); renderSessions(); renderAlerts();
 
   // Send to Google Sheets
   sendToSheets({
-    type: 'session',
-    user, meal,
-    duration: mins,
-    burner,
-    gas_used: gasUsed,
-    servings,
-    cost,
+    type: 'session', user, meal,
+    duration: mins, burner,
+    burners_used: burnersUsed,
+    burner_same_size: burnerSameSize,
+    all_at_once: allAtOnce,
+    is_weekend: isWeekend ? 'yes' : 'no',
+    gas_used: gasUsed, servings, cost,
     cylinder_size: state.cylinderSize,
     gas_remaining: state.currentGas
   });
@@ -1160,27 +1484,49 @@ function logSession() {
   document.getElementById('meal-name').value = '';
   document.getElementById('cook-time').value = '';
   document.getElementById('gas-used').value = '';
-  toast(`✅ Logged: ${meal} (${gasUsed} kg used)`);
+  toast(`✅ Logged: ${meal} (${gasUsed} kg, ${burnersUsed} burner${burnersUsed>1?'s':''})`);
 }
 
 function quickLog() {
   const meal = document.getElementById('m-meal').value.trim() || 'Cooking session';
   const mins = parseInt(document.getElementById('m-time').value) || 20;
-  const burner = document.getElementById('m-burner').value;
-  const gasUsed = parseFloat((BURNER_RATE[burner] * mins).toFixed(3));
-  const cost = Math.round(gasUsed * state.pricePerKg);
+  const burnersUsed = parseInt(document.getElementById('m-burners-used').value) || 1;
+  const allAtOnce = document.getElementById('m-all-at-once')?.value || 'no';
   const user = state.userName || 'Anonymous';
+  const isWeekend = [0,6].includes(new Date().getDay());
 
+  const sizes = getBurnerSizes('modal');
+  const burner = sizes[0] || 'medium';
+  const burnerSameSize = sizes.every(s => s === sizes[0]) ? 'yes' : 'no';
+
+  let gasUsed;
+  if (allAtOnce === 'yes') {
+    const totalRate = sizes.reduce((sum, s) => sum + BURNER_RATE[s] * mins, 0);
+    gasUsed = parseFloat(totalRate.toFixed(3));
+  } else if (allAtOnce === 'partial') {
+    gasUsed = parseFloat((BURNER_RATE[burner] * mins * (1 + burnersUsed * 0.5)).toFixed(3));
+  } else {
+    gasUsed = parseFloat((BURNER_RATE[burner] * mins).toFixed(3));
+  }
+
+  const cost = Math.round(gasUsed * state.pricePerKg);
   state.currentGas = Math.max(0, parseFloat((state.currentGas - gasUsed).toFixed(3)));
-  state.sessions.unshift({ meal, mins, burner, gasUsed, cost, date: new Date().toLocaleDateString() });
+  state.sessions.unshift({
+    meal, mins, burner, burnersUsed, burnerSameSize, allAtOnce,
+    gasUsed, cost, isWeekend,
+    servings: state.people,
+    date: new Date().toLocaleDateString(),
+    timestamp: new Date().toISOString()
+  });
   save(); updateGauge(); renderSessions(); renderAlerts();
 
-  // Send to Google Sheets
   sendToSheets({
-    type: 'session',
-    user, meal,
-    duration: mins,
-    burner,
+    type: 'session', user, meal,
+    duration: mins, burner,
+    burners_used: burnersUsed,
+    burner_same_size: burnerSameSize,
+    all_at_once: allAtOnce,
+    is_weekend: isWeekend ? 'yes' : 'no',
     gas_used: gasUsed,
     servings: state.people,
     cost,
@@ -1189,7 +1535,7 @@ function quickLog() {
   });
 
   closeModal('log-modal');
-  toast(`✅ ${meal} logged — ${gasUsed} kg used`);
+  toast(`✅ ${meal} — ${gasUsed} kg (${burnersUsed} burner${burnersUsed>1?'s':''})`);
 }
 
 function renderSessions() {
@@ -1198,20 +1544,25 @@ function renderSessions() {
     el.innerHTML = '<div class="empty-state"><div class="empty-icon">🍽️</div><div class="empty-text">No sessions logged yet</div></div>';
     return;
   }
-  el.innerHTML = state.sessions.slice(0, 20).map(s => `
+  el.innerHTML = state.sessions.slice(0, 20).map(s => {
+    const burnerInfo = s.burnersUsed ? `${s.burnersUsed} burner${s.burnersUsed>1?'s':''} · ${s.allAtOnce==='yes'?'all at once':s.allAtOnce==='partial'?'partial overlap':'one at a time'}` : '';
+    const dayType = s.isWeekend ? '🏖 Weekend' : '💼 Weekday';
+    return `
     <div class="list-item">
       <div class="list-item-left">
         <div class="li-icon" style="background:#FFF7ED">🍳</div>
         <div>
           <div class="li-title">${s.meal}</div>
-          <div class="li-sub">${s.mins} min · ${s.burner} burner · ${s.date}</div>
+          <div class="li-sub">${s.mins} min · ${s.burner} · ${burnerInfo}</div>
+          <div class="li-sub">${dayType} · ${s.date}</div>
         </div>
       </div>
       <div class="li-right">
         <div class="li-val">${s.gasUsed} kg</div>
         <div class="li-sub-r">${state.currency}${Math.round(s.gasUsed * state.pricePerKg)}</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 // ── RECORD REFILL
@@ -1247,6 +1598,9 @@ function recordRefill() {
 
 // ── ANALYTICS
 function renderAnalytics() {
+  const sessions = state.sessions;
+
+  // Weekly usage chart
   const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const data = [0.38, 0.42, 0.35, 0.51, 0.39, 0.55, 0.40];
   const max = Math.max(...data);
@@ -1258,7 +1612,7 @@ function renderAnalytics() {
       <div class="bar-val">${data[i]}</div>
     </div>`).join('');
 
-  document.getElementById('total-sessions').textContent = state.sessions.length;
+  document.getElementById('total-sessions').textContent = sessions.length;
   document.getElementById('total-refills').textContent = state.totalRefills;
 
   const dailyUse = 0.40;
@@ -1275,11 +1629,87 @@ function renderAnalytics() {
       <div><div class="li-title">${r.size} kg Cylinder</div><div class="history-date">${new Date(r.date).toLocaleDateString('en',{year:'numeric',month:'short',day:'numeric'})}</div></div>
       <div><div class="history-amount">${r.size} kg</div><div class="history-cost">${state.currency}${r.cost.toLocaleString()}</div></div>
     </div>`).join('');
+
+  // ── BURNER ANALYTICS
+  if (!sessions.length) {
+    document.getElementById('avg-burners').textContent = '—';
+    document.getElementById('all-at-once-count').textContent = '—';
+    document.getElementById('same-size-pct').textContent = '—';
+    document.getElementById('mixed-size-pct').textContent = '—';
+    document.getElementById('burner-count-chart').innerHTML = '<div class="empty-state" style="padding:16px"><p>Log sessions to see burner analytics</p></div>';
+    document.getElementById('weekday-weekend-chart').innerHTML = '<div class="empty-state" style="padding:16px"><p>Log sessions to see weekday vs weekend data</p></div>';
+    document.getElementById('burner-size-chart').innerHTML = '';
+    return;
+  }
+
+  // Avg burners per session
+  const withBurners = sessions.filter(s => s.burnersUsed);
+  const avgBurners = withBurners.length
+    ? (withBurners.reduce((a,s) => a + s.burnersUsed, 0) / withBurners.length).toFixed(1)
+    : '—';
+  document.getElementById('avg-burners').textContent = avgBurners;
+
+  // All at once count
+  const allAtOnceCount = sessions.filter(s => s.allAtOnce === 'yes').length;
+  document.getElementById('all-at-once-count').textContent = allAtOnceCount;
+
+  // Same size vs mixed
+  const sameSizeCount = sessions.filter(s => s.burnerSameSize === 'yes').length;
+  const mixedCount = sessions.filter(s => s.burnerSameSize === 'no').length;
+  const totalWithSize = sameSizeCount + mixedCount;
+  document.getElementById('same-size-pct').textContent = totalWithSize ? Math.round(sameSizeCount/totalWithSize*100) + '%' : '—';
+  document.getElementById('mixed-size-pct').textContent = totalWithSize ? Math.round(mixedCount/totalWithSize*100) + '%' : '—';
+
+  // Burner count chart (1,2,3,4)
+  const burnerCounts = {1:0, 2:0, 3:0, 4:0};
+  withBurners.forEach(s => { burnerCounts[s.burnersUsed] = (burnerCounts[s.burnersUsed]||0) + 1; });
+  const maxBC = Math.max(...Object.values(burnerCounts)) || 1;
+  document.getElementById('burner-count-chart').innerHTML = Object.entries(burnerCounts).map(([k,v]) => `
+    <div class="bar-row">
+      <div class="bar-label">${k}🔥</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(v/maxBC*100).toFixed(0)}%"></div></div>
+      <div class="bar-val">${v}</div>
+    </div>`).join('');
+
+  // Weekday vs Weekend — all-at-once sessions
+  const weekdayAllAtOnce = sessions.filter(s => s.allAtOnce === 'yes' && !s.isWeekend).length;
+  const weekendAllAtOnce = sessions.filter(s => s.allAtOnce === 'yes' && s.isWeekend).length;
+  const weekdayTotal = sessions.filter(s => !s.isWeekend).length;
+  const weekendTotal = sessions.filter(s => s.isWeekend).length;
+  const wdPct = weekdayTotal ? Math.round(weekdayAllAtOnce/weekdayTotal*100) : 0;
+  const wePct = weekendTotal ? Math.round(weekendAllAtOnce/weekendTotal*100) : 0;
+  const maxWW = Math.max(wdPct, wePct, 1);
+
+  document.getElementById('weekday-weekend-chart').innerHTML = `
+    <div class="bar-row">
+      <div class="bar-label" style="width:64px;font-size:11px">💼 Weekday</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(wdPct/maxWW*100).toFixed(0)}%"></div></div>
+      <div class="bar-val">${wdPct}%</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label" style="width:64px;font-size:11px">🏖 Weekend</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(wePct/maxWW*100).toFixed(0)}%;background:#F59E0B"></div></div>
+      <div class="bar-val">${wePct}%</div>
+    </div>
+    <p style="font-size:11px;color:var(--text-3);margin-top:8px">% of sessions where all burners were on simultaneously</p>`;
+
+  // Burner size distribution
+  const sizes = {small:0, medium:0, large:0};
+  sessions.forEach(s => { if(s.burner) sizes[s.burner] = (sizes[s.burner]||0)+1; });
+  const maxS = Math.max(...Object.values(sizes))||1;
+  document.getElementById('burner-size-chart').innerHTML = Object.entries(sizes).map(([k,v]) => `
+    <div class="bar-row">
+      <div class="bar-label" style="width:48px;font-size:11px;text-transform:capitalize">${k}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(v/maxS*100).toFixed(0)}%"></div></div>
+      <div class="bar-val">${v}</div>
+    </div>`).join('');
 }
 
 // ── SETTINGS
 function loadSettings() {
   document.getElementById('set-username').value = state.userName || '';
+  document.getElementById('set-burner-count').value = state.burnerCount || 2;
+  document.getElementById('set-burner-uniform').value = state.burnerUniform || 'yes';
   document.getElementById('set-cylinder').value = state.cylinderSize;
   document.getElementById('set-people').value = state.people;
   document.getElementById('set-meals').value = state.mealsPerDay;
@@ -1290,6 +1720,8 @@ function loadSettings() {
 
 function saveSettings() {
   state.userName = document.getElementById('set-username').value.trim() || 'Anonymous';
+  state.burnerCount = parseInt(document.getElementById('set-burner-count').value);
+  state.burnerUniform = document.getElementById('set-burner-uniform').value;
   state.cylinderSize = parseFloat(document.getElementById('set-cylinder').value);
   state.people = parseInt(document.getElementById('set-people').value);
   state.mealsPerDay = parseInt(document.getElementById('set-meals').value);
