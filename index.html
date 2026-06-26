@@ -1474,7 +1474,7 @@ function logSession() {
   });
   save(); updateGauge(); renderSessions(); renderAlerts();
 
-  // Send to Google Sheets
+  // Send to Backend
   sendToBackend({
     type: 'session', user, meal,
     duration: mins, burner,
