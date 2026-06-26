@@ -1134,32 +1134,38 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
-// ── GOOGLE SHEETS CONFIG — paste your Web App URL here
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzWPbwHcCypbjHoloaaZ_4baXy2LuniJtCR4g89yR0c3Ym26IyLCXyOvmLFvGYIyzjx8Q/exec';
+// ── BACKEND CONFIG — your FastAPI server URL
+const API_URL = 'http://localhost:8001';
 
-// ── SEND TO GOOGLE SHEETS
-async function sendToSheets(payload) {
-  if (!SHEETS_URL || SHEETS_URL.includes('YOUR_GOOGLE')) return;
+async function sendToBackend(payload) {
   try {
-    const params = new URLSearchParams({
-      user:             payload.user            || 'Anonymous',
-      meal:             payload.meal            || '',
-      duration:         payload.duration        || '',
-      burner:           payload.burner          || '',
-      burners_used:     payload.burners_used    || 1,
-      burner_same_size: payload.burner_same_size|| 'yes',
-      all_at_once:      payload.all_at_once     || 'no',
-      is_weekend:       payload.is_weekend      || 'no',
-      gas_used:         payload.gas_used        || '',
-      servings:         payload.servings        || '',
-      cost:             payload.cost            || '',
-      cylinder_size:    payload.cylinder_size   || '',
-      gas_remaining:    payload.gas_remaining   || '',
-      type:             payload.type            || 'session'
+    const body = {
+      user:             payload.user             || 'Anonymous',
+      meal:             payload.meal             || '',
+      duration:         payload.duration         || 0,
+      burner:           payload.burner           || 'medium',
+      burners_used:     payload.burners_used     || 1,
+      burner_sizes:     payload.burner_sizes     || [payload.burner || 'medium'],
+      burner_same_size: payload.burner_same_size || 'yes',
+      all_at_once:      payload.all_at_once      || 'no',
+      is_weekend:       payload.is_weekend === 'yes' || payload.is_weekend === true,
+      gas_used:         payload.gas_used         || 0,
+      servings:         payload.servings         || 1,
+      cost:             payload.cost             || 0,
+      cylinder_size:    payload.cylinder_size    || 12.5,
+      gas_remaining:    payload.gas_remaining    || 0,
+      record_type:      payload.type             || 'session',
+    };
+
+    const res = await fetch(API_URL + '/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
     });
-    new Image().src = SHEETS_URL + '?' + params.toString();
+    const data = await res.json();
+    console.log('✅ Logged to backend:', data);
   } catch(e) {
-    console.warn('Could not send to Sheets:', e);
+    console.warn('⚠️ Backend not reachable:', e.message);
   }
 }
 
@@ -1469,7 +1475,7 @@ function logSession() {
   save(); updateGauge(); renderSessions(); renderAlerts();
 
   // Send to Google Sheets
-  sendToSheets({
+  sendToBackend({
     type: 'session', user, meal,
     duration: mins, burner,
     burners_used: burnersUsed,
@@ -1520,7 +1526,7 @@ function quickLog() {
   });
   save(); updateGauge(); renderSessions(); renderAlerts();
 
-  sendToSheets({
+sendToBackend({
     type: 'session', user, meal,
     duration: mins, burner,
     burners_used: burnersUsed,
@@ -1579,8 +1585,7 @@ function recordRefill() {
   state.refills.unshift({ date, size, cost });
   save(); updateGauge(); renderAlerts(); closeModal('refill-modal');
 
-  // Send to Google Sheets
-  sendToSheets({
+sendToBackend({
     type: 'refill',
     user,
     meal: 'REFILL',
