@@ -1241,7 +1241,14 @@ function updateGauge() {
   document.getElementById('gauge-cyl').textContent = state.cylinderSize + ' kg Cylinder';
 
   // Days remaining
-  const dailyRate = state.currentGas / Math.max(1, daysSinceRefill()) * 0.4;
+  const daysSince = Math.max(1, daysSinceRefill());
+  const gasUsed = Math.max(0, state.cylinderSize - state.currentGas);
+  let dailyRate = gasUsed / daysSince;
+  if (dailyRate <= 0) {
+    // Not enough usage data yet (e.g. right after a refill) — fall back to a
+    // reasonable default so the estimate isn't wildly optimistic.
+    dailyRate = state.cylinderSize * 0.4 / 30;
+  }
   const daysLeft = Math.round(state.currentGas / Math.max(0.1, dailyRate));
   document.getElementById('days-left').textContent = `~${daysLeft} days`;
 
@@ -1526,7 +1533,7 @@ function quickLog() {
   });
   save(); updateGauge(); renderSessions(); renderAlerts();
 
-sendToBackend({
+  sendToBackend({
     type: 'session', user, meal,
     duration: mins, burner,
     burners_used: burnersUsed,
@@ -1585,7 +1592,8 @@ function recordRefill() {
   state.refills.unshift({ date, size, cost });
   save(); updateGauge(); renderAlerts(); closeModal('refill-modal');
 
-sendToBackend({
+  // Send to Backend
+  sendToBackend({
     type: 'refill',
     user,
     meal: 'REFILL',
