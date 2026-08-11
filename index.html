@@ -1919,8 +1919,32 @@ function updateGasLevel() {
 function toggleSetting(el) { el.classList.toggle('on'); }
 
 // ── DATA
+function calculateNextRefill() {
+  // Mirrors the exact logic used in updateGauge() so the export matches
+  // what the person sees on the gauge screen.
+  const daysSince = Math.max(1, daysSinceRefill());
+  const gasUsed = Math.max(0, state.cylinderSize - state.currentGas);
+  let dailyRate = gasUsed / daysSince;
+  if (dailyRate <= 0) {
+    dailyRate = state.cylinderSize * 0.4 / 30;
+  }
+  const daysLeft = Math.round(state.currentGas / Math.max(0.1, dailyRate));
+  const nextRefillDate = new Date(Date.now() + daysLeft * 24 * 60 * 60 * 1000);
+
+  return {
+    daysLeft,
+    dailyRateKg: Math.round(dailyRate * 1000) / 1000,
+    nextRefillDate: nextRefillDate.toISOString().split('T')[0],
+    nextRefillDateLabel: nextRefillDate.toLocaleDateString('en', {month:'short', day:'numeric', year:'numeric'})
+  };
+}
+
 function exportData() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const enrichedState = {
+    ...state,
+    nextRefillEstimate: calculateNextRefill()
+  };
+  const blob = new Blob([JSON.stringify(enrichedState, null, 2)], {type:'application/json'});
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'flametrack_data.json';
